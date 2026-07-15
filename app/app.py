@@ -11,7 +11,6 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
 html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
-
 .hero {
   background: linear-gradient(135deg, #04220f 0%, #006C35 55%, #0a3d1f 100%);
   border: 1px solid rgba(201,162,39,.35);
@@ -20,14 +19,12 @@ html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
 .hero h1 { color: #fff; font-size: 2.3rem; font-weight: 800; margin: 0; }
 .hero .gold { color: #C9A227; }
 .hero p { color: rgba(255,255,255,.85); margin: 8px 0 0; font-size: 1.05rem; }
-
 div[data-testid="stMetric"] {
   background: linear-gradient(160deg, rgba(0,108,53,.10), rgba(201,162,39,.07));
   border: 1px solid rgba(201,162,39,.30);
   border-radius: 14px; padding: 14px 18px;
 }
 div[data-testid="stMetric"] label { color: #C9A227 !important; }
-
 .stTabs [data-baseweb="tab"] { font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
@@ -36,7 +33,12 @@ div[data-testid="stMetric"] label { color: #C9A227 !important; }
 def load_data():
     return pd.read_csv("data/clean/clean_data.csv")
 
+@st.cache_data
+def load_gdp():
+    return pd.read_csv("data/raw/host_gdp.csv")
+
 df = load_data()
+gdp = load_gdp()
 
 # ---------- Hero banner ----------
 st.markdown("""
@@ -70,8 +72,8 @@ if team != "All teams":
 # ---------- Summary statistics ----------
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Matches", len(f))
-c2.metric("Avg goals/match", f"{f.total_goals.mean():.2f}")
-c3.metric("Avg attendance", f"{f.attendance.mean():,.0f}")
+c2.metric("Avg goals/match", f"{f.total_goals.mean():.2f}" if len(f) else "—")
+c3.metric("Avg attendance", f"{f.attendance.mean():,.0f}" if len(f) else "—")
 host_rate = f.loc[f.host_playing == 1, "host_won"].mean()
 c4.metric("Host win rate", f"{host_rate:.0%}" if pd.notna(host_rate) else "—")
 
@@ -80,7 +82,8 @@ with st.expander("📄 Data preview"):
     st.dataframe(f.head(50), use_container_width=True)
 
 # ---------- Interactive visualizations ----------
-tab1, tab2, tab3 = st.tabs(["⚽ Goals & Stages", "📊 Host Advantage", "🇸🇦 Saudi 2034"])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["⚽ Goals & Stages", "📊 Host Advantage", "🇸🇦 Saudi 2034", "💰 Economics"])
 
 with tab1:
     st.plotly_chart(px.histogram(f, x="total_goals", nbins=13,
@@ -115,6 +118,21 @@ with tab3:
         "- Our logistic model (65.3% accuracy) attributes **+22.5pp** to hosting\n"
         "- *Caveat: assumes an average opponent; squad may improve by 2034*")
 
+with tab4:
+    st.subheader("Does hosting boost the economy?")
+    avg = gdp.groupby('rel_year')['gdp_growth'].mean().reset_index()
+    fig = px.line(avg, x='rel_year', y='gdp_growth', markers=True,
+        title='Average GDP Growth Around Hosting (8 hosts, 1990–2018)',
+        color_discrete_sequence=[GREEN])
+    fig.add_vline(x=0, line_dash="dash", line_color=GOLD)
+    fig.update_layout(xaxis_title="Years relative to hosting",
+                      yaxis_title="Real GDP growth (%)")
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("📉 Mean change (after − before): **−0.99 pp**. Hosting brings a "
+            "small bump in the event year but no lasting growth boost — "
+            "consistent with sports-economics research. On-pitch advantage is "
+            "real; economic advantage is not guaranteed.")
+
 # ---------- Key insights ----------
 st.divider()
 st.subheader("💡 Key insights")
@@ -122,7 +140,8 @@ st.markdown(
     "1. **Host advantage is real and large** (+24pp raw, +22.5pp modeled — "
     "`is_host` coefficient +0.93 in our logistic model).\n"
     "2. **Crowds are the mechanism** — host matches draw ~70k vs ~40k median attendance.\n"
-    "3. **2034 outlook:** hosting alone makes Saudi Arabia a slight favorite "
+    "3. **Economics ≠ guaranteed** — GDP growth shows no lasting boost from hosting.\n"
+    "4. **2034 outlook:** hosting alone makes Saudi Arabia a slight favorite "
     "in a typical match — before any squad improvement.")
 
 st.markdown(
